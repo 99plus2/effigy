@@ -1,18 +1,19 @@
-Feature: Integrate with Rails 2.3
+Feature: Integrate with Rails templates
 
   Background:
-    When I generate a new rails 2 application
-    And I configure the rails 2 preinitializer to use bundler
+    When I generate a new rails application
+    And I configure the rails preinitializer to use bundler
+    And I configure my routes to allow global access
     And I save the following as "Gemfile"
       """
       source "http://rubygems.org"
-      gem 'rails', '2.3.8'
+      gem 'rails', '{RAILS_VERSION}'
       gem 'sqlite3-ruby', :require => 'sqlite3'
       gem 'effigy', :path => '../../', :require => 'effigy/rails'
       """
     When I run "bundle lock"
 
-  Scenario: render a template a reference assigns
+  Scenario: render a template and reference assigns
     When I save the following as "app/controllers/magic_controller.rb"
       """
       class MagicController < ApplicationController

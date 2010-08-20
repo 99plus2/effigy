@@ -16,6 +16,17 @@ module Effigy
     class TemplateHandler < ActionView::TemplateHandler
       include ActionView::TemplateHandlers::Compilable
 
+      # def self.call(template)
+      #   p template.class
+      #   p template
+      #   new(template).compile
+      # end
+
+      # def initalize(view)
+      #   super
+      #   @view = view
+      # end
+
       # Compiles the given view. Calls by ActionView when loading the view.
       # @return [String] Ruby code that can be evaluated to get the rendered
       #   contents of this view
@@ -23,14 +34,17 @@ module Effigy
         @view = view
         load_view_class
         return <<-RUBY
+          assigns = {}
           if @controller
             variables = @controller.instance_variable_names
             variables -= @controller.protected_instance_variables if @controller.respond_to?(:protected_instance_variables)
             assigns = variables.inject({}) do |hash, name|
               hash.update(name => @controller.instance_variable_get(name))
             end
-            local_assigns.each do |name, value|
-              assigns.update("@\#{name}" => value)
+            if local_assigns
+              local_assigns.each do |name, value|
+                assigns.update("@\#{name}" => value)
+              end
             end
           end
           view = #{view_class_name}.new(self, assigns) { |*names| yield(*names) }
@@ -38,16 +52,31 @@ module Effigy
         RUBY
       end
 
+      # Uses the name on the view for Rails 2, and guesses it from the
+      # virtual path in Rails 3.
+      #
       # @return [String] the name of the view, such as "index"
       def view_name
-        @view.name
+        if @view.respond_to?(:name)
+          @view.name
+        else
+          @view.virtual_path.split('/').last
+        end
       end
 
+      # Uses the base_path on the view for Rails 2, and guesses it from the
+      # virtual path in Rails 3.
+      #
       # @return [String] the path from the view root to the view file. For
       #   example, "RAILS_ROOT/app/views/users/index.html.effigy" would be
       #   "users."
       def base_path
-        @view.base_path
+        if @view.respond_to?(:base_path)
+          @view.base_path
+        else
+          # starts out like "users/index"
+          @view.virtual_path.sub(%r{/[^/]*$}, '')
+        end
       end
 
       # Loads the view class from the discovered view file. View classes should
@@ -55,7 +84,17 @@ module Effigy
       #
       # See {#view_class_name} for more information about class names.
       def load_view_class
-        load(@view.filename)
+        load(view_filename)
+      end
+
+      # Uses the Rails 2 filename or identifier in Rails 3.
+      # @return [String] the filename for this view
+      def view_filename
+        if @view.respond_to?(:filename)
+          @view.filename
+        else
+          @view.identifier
+        end
       end
 
       # Generates a class name for this view. Normal views are prefixed with
@@ -103,14 +142,35 @@ module Effigy
 
       # @return [Boolean] true-ish if this view is a partial, false-ish otherwise
       def partial?
-        @view.name =~ /^_/
+        view_name =~ /^_/
       end
 
       # @return [String] the contents of the template file for this view
       def template_source
-        template_path = @view.load_path.path.sub(/\/views$/, '/templates')
-        template_file_name = File.join(template_path, base_path, "#{view_name}.#{@view.format}")
+        template_path = view_load_path.sub(/\/views$/, '/templates')
+        template_file_name = File.join(template_path, base_path, "#{view_name}.#{view_format}")
         IO.read(template_file_name)
+      end
+
+      # Uses the load path on the view for Rails 2, and guesses it based on the
+      # identifier will work for Rails 3.
+      #
+      # @return [String] the load path from which this view was loaded
+      def view_load_path
+        if @view.respond_to?(:load_path)
+          @view.load_path.path
+        else
+          @view.identifier.sub(%r{/#{Regexp.escape(@view.virtual_path)}.*$}, '')
+        end
+      end
+
+      # @return [String] the format being rendered
+      def view_format
+        if @view.respond_to?(:format)
+          @view.format
+        else
+          @view.formats.first
+        end
       end
     end
   end

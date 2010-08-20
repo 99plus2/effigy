@@ -3,6 +3,14 @@ require 'effigy/view'
 require 'effigy/rails/view'
 require 'effigy/rails/template_handler'
 
+if Rails::VERSION::MAJOR == 3
+  ActiveSupport.on_load(:action_view) do
+    ActionView::Template.register_template_handler :effigy, Effigy::Rails::TemplateHandler
+  end
+else
+  ActionView::Template.register_template_handler :effigy, Effigy::Rails::TemplateHandler
+end
+
 module Effigy
   # Rails-specific functionality.
   #
@@ -60,4 +68,3 @@ module Effigy
   end
 end
 
-ActionView::Template.register_template_handler :effigy, Effigy::Rails::TemplateHandler
